@@ -1,9 +1,16 @@
 # -*- coding: utf-8 -*-
+from glob import glob
+from skimage.feature import hog
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+from sklearn.utils import shuffle
+from tqdm import tqdm
+
 import cv2
 import matplotlib.pyplot as plt
 import numpy as np
-from glob import glob
-from skimage.feature import hog
+import pickle 
+
 
 def imgread(path):
     return cv2.cvtColor(cv2.imread(path),cv2.COLOR_BGR2RGB)
@@ -44,13 +51,13 @@ def extract_color_hist_features(img,nbins=32,range_vals=(0,256)):
     chan1_hist = np.histogram(img[:,:,1],bins=nbins,range=range_vals)
     chan2_hist = np.histogram(img[:,:,2],bins=nbins,range=range_vals)
     
-    color_hist_features = np.concatenate(chan0_hist[0],
+    color_hist_features = np.concatenate((chan0_hist[0],
                                          chan1_hist[0],
-                                         chan2_hist[0])
+                                         chan2_hist[0]))
     return color_hist_features
 
 
-def extract_hog_features(img_channel, nb_orient=9, 
+def extract_hog_features(img_channel, channels=0,nb_orient=9, 
                          nb_pix_per_cell=8,
                          nb_cell_per_block=2, 
                          visualize= False, 
@@ -71,6 +78,67 @@ def extract_hog_features(img_channel, nb_orient=9,
                                   visualise=False,
                                   feature_vector=ret_vector)
         return features
+    
+
+def get_features(img,hog_channel='ALL'):
+    spatial_bin_features = extract_spatial_bin_features(img,
+                                                        colorspace='HSV',
+                                                        size=(16,16))
+    
+    color_hist_features  = extract_color_hist_features(img)
+    
+    if hog_channel == 'ALL':
+        hog_features = [ ]
+        
+        for channel in range(2):
+            hog_features.append(extract_hog_features(img[:,:,channel]))
+            
+        hog_features = np.ravel(hog_features)
+    
+    else:
+        hog_features = extract_hog_features(img)
+    
+    return np.concatenate((spatial_bin_features,
+                          color_hist_features,
+                          hog_features))
+    
+    
+def build_dataset(car_paths,notcar_paths):
+    paths = car_paths+notcar_paths
+    
+    X = []
+    for path in tqdm(paths):
+        img = imgread(path)
+        X.append(get_features(img))
+    X = np.reshape(X,[len(paths),-1])
+    
+    
+    y = np.concatenate((np.ones(len(car_paths)),
+                       np.zeros(len(notcar_paths))))
+    
+    
+    Scaler_X = StandardScaler().fit(X)    
+    
+    X_scaled = Scaler_X.transform(X)
+    
+    X_scaled, y = shuffle((X_scaled,y))
+    
+    X_train, X_test, y_train, y_test = \
+        train_test_split(X_scaled,y,train_size=0.7)
+    
+    with open('train.p','wb') as f:
+        pickle.dump(X_train,f)
+        pickle.dump(y_train,f)
+        
+    with open('test.p','wb') as f:
+        pickle.dump(X_test,f)
+        pickle.dump(y_test,f)
+    
+    with open('scaler.p','wb') as f:
+        pickle.dump(Scaler_X,f)
+    
+    
+    
 
 
 def prepare_data():
@@ -86,10 +154,10 @@ def prepare_data():
     non_vehicle_img_path.extend(glob('non-vehicles/Extras/*.png'))
     non_vehicle_img_path.extend(glob('non-vehicles/GTI/*.png'))
     
-    vehicle_imgs = load_image_data(vehicle_img_path)
+    build_dataset(vehicle_img_path, non_vehicle_img_path)
     
-    non_vehicle_imgs = load_image_data(non_vehicle_img_path)
-    print(len(vehicle_imgs),len(non_vehicle_imgs))
+    
+    
     
     
         
