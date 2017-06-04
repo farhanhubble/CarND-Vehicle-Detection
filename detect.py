@@ -3,6 +3,7 @@ import cv2
 import matplotlib.pyplot as plt
 import numpy as np
 from glob import glob
+from skimage.feature import hog
 
 def imgread(path):
     return cv2.cvtColor(cv2.imread(path),cv2.COLOR_BGR2RGB)
@@ -49,9 +50,27 @@ def extract_color_hist_features(img,nbins=32,range_vals=(0,256)):
     return color_hist_features
 
 
-
-        
+def extract_hog_features(img_channel, nb_orient=9, 
+                         nb_pix_per_cell=8,
+                         nb_cell_per_block=2, 
+                         visualize= False, 
+                         ret_vector=True):
     
+    if visualize == True:
+        features, hog_image = hog(img_channel,orientations=nb_orient,
+                                  pixels_per_cell= (nb_pix_per_cell,nb_pix_per_cell),
+                                  cells_per_block = (nb_cell_per_block,nb_cell_per_block),
+                                  visualise=True,
+                                  feature_vector=ret_vector)
+        return features, hog_image
+    
+    else:
+        features  = hog(img_channel,orientations=nb_orient,
+                                  pixels_per_cell = (nb_pix_per_cell,nb_pix_per_cell),
+                                  cells_per_block = (nb_cell_per_block,nb_cell_per_block),
+                                  visualise=False,
+                                  feature_vector=ret_vector)
+        return features
 
 
 def prepare_data():
