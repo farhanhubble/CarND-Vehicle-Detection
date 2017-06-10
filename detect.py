@@ -9,6 +9,7 @@ from tqdm import tqdm
 import cv2
 import matplotlib.pyplot as plt
 import numpy as np
+import os
 import pickle 
 
 
@@ -90,7 +91,7 @@ def get_features(img,hog_channel='ALL'):
     if hog_channel == 'ALL':
         hog_features = [ ]
         
-        for channel in range(2):
+        for channel in range(3):
             hog_features.append(extract_hog_features(img[:,:,channel]))
             
         hog_features = np.ravel(hog_features)
@@ -103,13 +104,14 @@ def get_features(img,hog_channel='ALL'):
                           hog_features))
     
     
-def build_dataset(car_paths,notcar_paths):
+def build_datasets(car_paths,notcar_paths):
     paths = car_paths+notcar_paths
     
     X = []
     for path in tqdm(paths):
         img = imgread(path)
         X.append(get_features(img))
+        
     X = np.reshape(X,[len(paths),-1])
     
     
@@ -121,18 +123,18 @@ def build_dataset(car_paths,notcar_paths):
     
     X_scaled = Scaler_X.transform(X)
     
-    X_scaled, y = shuffle((X_scaled,y))
+    X_scaled, y = shuffle(X_scaled,y)
     
     X_train, X_test, y_train, y_test = \
         train_test_split(X_scaled,y,train_size=0.7)
     
     with open('train.p','wb') as f:
-        pickle.dump(X_train,f)
-        pickle.dump(y_train,f)
+        train_set = {'data':X_train, 'labels':y_train}
+        pickle.dump(train_set,f)
         
     with open('test.p','wb') as f:
-        pickle.dump(X_test,f)
-        pickle.dump(y_test,f)
+        test_set = {'data':X_test, 'labels':y_test}
+        pickle.dump(test_set,f)
     
     with open('scaler.p','wb') as f:
         pickle.dump(Scaler_X,f)
@@ -141,20 +143,31 @@ def build_dataset(car_paths,notcar_paths):
     
 
 
-def prepare_data():
-    # Load all image data.
-    vehicle_img_path = []
-    vehicle_img_path.extend(glob('vehicles/GTI_Far/*.png'))
-    vehicle_img_path.extend(glob('vehicles/GTI_Left/*.png'))
-    vehicle_img_path.extend(glob('vehicles/GTI_MiddleClose/*.png'))
-    vehicle_img_path.extend(glob('vehicles/GTI_Right/*.png'))
-    vehicle_img_path.extend(glob('vehicles/KITTI_extracted/*.png'))
-      
-    non_vehicle_img_path = []
-    non_vehicle_img_path.extend(glob('non-vehicles/Extras/*.png'))
-    non_vehicle_img_path.extend(glob('non-vehicles/GTI/*.png'))
+def get_datasets(force=False):
     
-    build_dataset(vehicle_img_path, non_vehicle_img_path)
+    if (force == True)\
+    or not os.path.isfile('train.p')\
+    or not os.path.isfile('test.p')\
+    or not os.path.isfile('scaler.p'):
+            
+        # Load all image data.
+        vehicle_img_path = []
+        vehicle_img_path.extend(glob('vehicles/GTI_Far/*.png'))
+        vehicle_img_path.extend(glob('vehicles/GTI_Left/*.png'))
+        vehicle_img_path.extend(glob('vehicles/GTI_MiddleClose/*.png'))
+        vehicle_img_path.extend(glob('vehicles/GTI_Right/*.png'))
+        vehicle_img_path.extend(glob('vehicles/KITTI_extracted/*.png'))
+          
+        non_vehicle_img_path = []
+        non_vehicle_img_path.extend(glob('non-vehicles/Extras/*.png'))
+        non_vehicle_img_path.extend(glob('non-vehicles/GTI/*.png'))
+        
+        build_datasets(vehicle_img_path, non_vehicle_img_path)
+        
+    else:
+        pass
+        
+    
     
     
     
