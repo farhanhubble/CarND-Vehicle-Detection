@@ -24,26 +24,8 @@ def load_image_data(paths):
     return np.array(data,dtype=np.uint8)
 
 
-def extract_spatial_bin_features(img,colorspace='RGB',size=(32,32)):
-    if colorspace != 'RGB':
-        if colorspace == 'HSV':
-            img = cv2.cvtColor(img,cv2.COLOR_RGB2HSV)
-        
-        elif colorspace == 'HLS':
-            img = cv2.cvtColor(img,cv2.COLOR_RGB2HLS)
-            
-        elif colorspace == 'LUV':
-            img = cv2.cvtColor(img, cv2.COLOR_RGB2LUV)
-            
-        elif colorspace == 'YUV':
-            img = cv2.cvtColor(img, cv2.COLOR_RGB2YUV)
-        
-        elif colorspace == 'YCrCb':
-            img = cv2.cvtColor(img, cv2.COLOR_RGB2YCrCb)
-            
-        else:
-            raise Exception("% colorspace is not a valid colorspace"%(colorspace))
-            
+def extract_spatial_bin_features(img,size=(32,32)):
+          
     return cv2.resize(img,size).flatten()
 
 
@@ -81,9 +63,28 @@ def extract_hog_features(img_channel, channels=0,nb_orient=9,
         return features
     
 
-def get_features(img,hog_channel='ALL'):
+def get_features(img,hog_channel='ALL',colorspace='RGB'):
+    
+    if colorspace != 'RGB':
+        if colorspace == 'HSV':
+            img = cv2.cvtColor(img,cv2.COLOR_RGB2HSV)
+        
+        elif colorspace == 'HLS':
+            img = cv2.cvtColor(img,cv2.COLOR_RGB2HLS)
+            
+        elif colorspace == 'LUV':
+            img = cv2.cvtColor(img, cv2.COLOR_RGB2LUV)
+            
+        elif colorspace == 'YUV':
+            img = cv2.cvtColor(img, cv2.COLOR_RGB2YUV)
+        
+        elif colorspace == 'YCrCb':
+            img = cv2.cvtColor(img, cv2.COLOR_RGB2YCrCb)
+            
+        else:
+            raise Exception("% colorspace is not a valid colorspace"%(colorspace))
+            
     spatial_bin_features = extract_spatial_bin_features(img,
-                                                        colorspace='HSV',
                                                         size=(16,16))
     
     color_hist_features  = extract_color_hist_features(img)
