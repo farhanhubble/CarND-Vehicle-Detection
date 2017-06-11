@@ -149,8 +149,7 @@ def get_datasets(force=False):
     
     if (force == True)\
     or not os.path.isfile('train.p')\
-    or not os.path.isfile('test.p')\
-    or not os.path.isfile('scaler.p'):
+    or not os.path.isfile('test.p'):
             
         # Load all image data.
         vehicle_img_path = []
@@ -172,10 +171,13 @@ def get_datasets(force=False):
     with open('test.p','rb') as f:
         test_data = pickle.load(f)
         
-    with open('scaler.p','rb') as f:
-        X_scaler = pickle.load(f)
-        
-    return (train_data,test_data,X_scaler)
+    return (train_data,test_data)
+
+
+def load_scaler(filename):
+    with open(filename,'rb') as f:
+        scaler = pickle.load(f)
+        return scaler
 
 
 def train(X,y):
@@ -202,19 +204,22 @@ def load_model(filename):
 
 if __name__ == '__main__':
 
+    if not os.path.isfile('model.p'):
+        train_data,test_data = get_datasets()
+        
+        X_train, y_train = train_data['data'],train_data['labels']
+        X_test,y_test = test_data['data'],test_data['labels']
+        
+        model = train(X_train, y_train)
+        del([train_data])
+        
+        print('Test Accuracy of SVC = ',test(model,X_test,y_test))
+        del([test_data])
     
-    train_data,test_data,X_scaler = get_datasets()
-    
-    X_train, y_train = train_data['data'],train_data['labels']
-    X_test,y_test = test_data['data'],test_data['labels']
-    
-    model = train(X_train, y_train)
-    del([train_data])
-    
-    print('Test Accuracy of SVC = ',test(model,X_test,y_test))
-    del([test_data])
-    
-    save_model('model.m')
-    
-    
-    
+        save_model(model, 'model.p')
+        
+    else:    
+        model = load_model('model.p')
+        
+    X_scaler = load_scaler('scaler.p')
+        
