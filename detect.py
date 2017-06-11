@@ -241,6 +241,23 @@ def draw_bbox(img,bboxes,color=[0,0,255],thick=5):
     return imgcpy
 
 
+def get_sub_images(img,wndw_sz:tuple,stride:tuple,resize=(64,64)):
+    x_range = (0,img.shape[1]-1)
+    y_range = (0,img.shape[0]-1)
+    
+    wndw_list = build_window_list(x_range,y_range,wndw_sz,stride)
+    
+    for wndw in wndw_list:
+        xl,xr = wndw[0][0], wndw[1][0] + 1
+        yl,yr = wndw[0][1], wndw[1][1] + 1
+        
+        sub_image = img[yl:yr, xl:xr]
+        
+        yield cv2.resize(sub_image,resize)
+    
+    
+
+
 
 if __name__ == '__main__':
 
