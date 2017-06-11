@@ -14,6 +14,7 @@ import os
 import pickle 
 
 
+
 def imgread(path):
     return cv2.cvtColor(cv2.imread(path),cv2.COLOR_BGR2RGB)
 
@@ -251,9 +252,23 @@ def get_sub_images(img,wndw_sz:tuple,stride:tuple,resize=(64,64)):
         xl,xr = wndw[0][0], wndw[1][0] + 1
         yl,yr = wndw[0][1], wndw[1][1] + 1
         
-        sub_image = img[yl:yr, xl:xr]
+        sub_image = cv2.resize(img[yl:yr, xl:xr],resize)
         
-        yield cv2.resize(sub_image,resize)
+        yield (sub_image,wndw)
+        
+        
+def window_seach(img,wndw_sz:tuple,stride:tuple,model,scaler):
+    
+    sub_images = get_sub_images(img,wndw_sz,stride)
+    
+    for sub_image,wndw in sub_images:
+        features = get_features(sub_image,colorspace='HSV')
+        scaled_features = scaler.transform(features.reshape(1,-1))
+        
+        is_car = model.predict(scaled_features)
+        
+        if is_car == 1:
+            yield wndw
     
     
 
