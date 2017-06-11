@@ -223,17 +223,23 @@ def build_window_list(x_range:tuple, y_range:tuple,
     y_start_pos = irange(y_start,y_stop,y_stride)
     
     
-    wndw_list = []
-    
     for y_top in y_start_pos:
         y_bottom = y_top + wndw_height -1
         
         for x_left in x_start_pos:
             x_right = x_left + wndw_width - 1
             
-            wndw_list.append([(x_left,y_top),(x_right,y_bottom)])
+            yield [(x_left,y_top),(x_right,y_bottom)]
             
-    return wndw_list
+            
+def draw_bbox(img,bboxes,color=[0,0,255],thick=5):
+    imgcpy = np.copy(img)
+    
+    for bbox in bboxes:
+        cv2.rectangle(imgcpy,bbox[0],bbox[1],color,thick)
+    
+    return imgcpy
+
 
 
 if __name__ == '__main__':
