@@ -145,8 +145,6 @@ def build_datasets(car_paths,notcar_paths):
     
     
     
-
-
 def get_datasets(force=False):
     
     if (force == True)\
@@ -186,8 +184,24 @@ def train(X,y):
     return svc
 
 
+def test(model,X,y):
+    return round(model.score(X_test,y_test), 4)
+
+
+def save_model(model,filename):
+    with open(filename,'wb') as f:
+        pickle.dump(model, f)
+        
+
+def load_model(filename):
+    with open(filename,'rb') as f:
+        model = pickle.load(f)
+        return model
+
+
 
 if __name__ == '__main__':
+
     
     train_data,test_data,X_scaler = get_datasets()
     
@@ -197,8 +211,10 @@ if __name__ == '__main__':
     model = train(X_train, y_train)
     del([train_data])
     
-    print('Test Accuracy of SVC = ', 
-         round(model.score(X_test,y_test), 4))
+    print('Test Accuracy of SVC = ',test(model,X_test,y_test))
+    del([test_data])
+    
+    save_model('model.m')
     
     
     
