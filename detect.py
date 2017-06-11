@@ -277,6 +277,23 @@ def window_search(img,wndw_sz:tuple,stride:tuple,model,scaler):
         if is_car == 1:
             yield wndw
             
+            
+def multiscale_window_search(img,model,scaler):
+    
+    wndw_sz_list = [(32,32),(64,64),(128,128),(256,256)]
+    strides_list = [(16,16),(32,32),(64,64),(128,128)]
+    
+    detections = []
+    
+    for i in range(len(wndw_sz_list)):
+        windows = window_search(img,wndw_sz_list[i],strides_list[i],
+                                model,scaler)
+        windows = list(windows)
+        
+        detections.extend(windows)
+        
+    return detections
+            
 
 if __name__ == '__main__':
 
