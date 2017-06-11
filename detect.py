@@ -3,6 +3,7 @@ from glob import glob
 from skimage.feature import hog
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
+from sklearn.svm import LinearSVC
 from sklearn.utils import shuffle
 from tqdm import tqdm
 
@@ -111,7 +112,7 @@ def build_datasets(car_paths,notcar_paths):
     X = []
     for path in tqdm(paths):
         img = imgread(path)
-        X.append(get_features(img))
+        X.append(get_features(img,colorspace='HSV'))
         
     X = np.reshape(X,[len(paths),-1])
     
@@ -128,6 +129,8 @@ def build_datasets(car_paths,notcar_paths):
     
     X_train, X_test, y_train, y_test = \
         train_test_split(X_scaled,y,train_size=0.7)
+        
+    del([X_scaled,y])
     
     with open('train.p','wb') as f:
         train_set = {'data':X_train, 'labels':y_train}
@@ -165,14 +168,37 @@ def get_datasets(force=False):
         
         build_datasets(vehicle_img_path, non_vehicle_img_path)
         
-    else:
-        pass
+    with open('train.p','rb') as f:
+        train_data = pickle.load(f)
         
-    
-    
-    
-    
-    
-    
+    with open('test.p','rb') as f:
+        test_data = pickle.load(f)
         
+    with open('scaler.p','rb') as f:
+        X_scaler = pickle.load(f)
         
+    return (train_data,test_data,X_scaler)
+
+
+def train(X,y):
+    svc = LinearSVC()
+    svc.fit(X,y)
+    return svc
+
+
+
+if __name__ == '__main__':
+    
+    train_data,test_data,X_scaler = get_datasets()
+    
+    X_train, y_train = train_data['data'],train_data['labels']
+    X_test,y_test = test_data['data'],test_data['labels']
+    
+    model = train(X_train, y_train)
+    del([train_data])
+    
+    print('Test Accuracy of SVC = ', 
+         round(model.score(X_test,y_test), 4))
+    
+    
+    
