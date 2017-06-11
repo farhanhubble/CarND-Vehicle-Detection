@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 from glob import glob
 from skimage.feature import hog
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import train_test_split, GridSearchCV
 from sklearn.preprocessing import StandardScaler
-from sklearn.svm import LinearSVC
+from sklearn.svm import SVC
 from sklearn.utils import shuffle
 from tqdm import tqdm
 
@@ -12,6 +12,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 import os
 import pickle 
+
+
+def class(object) config:
+    COLORSPACE = 'HSV'
 
 
 
@@ -182,9 +186,12 @@ def load_scaler(filename):
 
 
 def train(X,y):
-    svc = LinearSVC()
-    svc.fit(X,y)
-    return svc
+    hyperparams = {'C':[0.1,1,10],
+                   'kernel':['linear']}
+    svc = SVC()
+    clf = GridSearchCV(svc,hyperparams,verbose=2)
+    clf.fit(X,y)
+    return clf
 
 
 def test(model,X,y):
@@ -257,7 +264,7 @@ def get_sub_images(img,wndw_sz:tuple,stride:tuple,resize=(64,64)):
         yield (sub_image,wndw)
         
         
-def window_seach(img,wndw_sz:tuple,stride:tuple,model,scaler):
+def window_search(img,wndw_sz:tuple,stride:tuple,model,scaler):
     
     sub_images = get_sub_images(img,wndw_sz,stride)
     
@@ -269,10 +276,7 @@ def window_seach(img,wndw_sz:tuple,stride:tuple,model,scaler):
         
         if is_car == 1:
             yield wndw
-    
-    
-
-
+            
 
 if __name__ == '__main__':
 
