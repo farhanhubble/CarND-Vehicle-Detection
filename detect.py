@@ -14,11 +14,6 @@ import os
 import pickle 
 
 
-def class(object) config:
-    COLORSPACE = 'HSV'
-
-
-
 def imgread(path):
     return cv2.cvtColor(cv2.imread(path),cv2.COLOR_BGR2RGB)
 
@@ -278,21 +273,27 @@ def window_search(img,wndw_sz:tuple,stride:tuple,model,scaler):
             yield wndw
             
             
-def multiscale_window_search(img,model,scaler):
-    
-    wndw_sz_list = [(32,32),(64,64),(128,128),(256,256)]
-    strides_list = [(16,16),(32,32),(64,64),(128,128)]
-    
-    detections = []
-    
+def multiscale_window_search(img,wndw_sz_list,strides_list,model,scaler):
+       
     for i in range(len(wndw_sz_list)):
         windows = window_search(img,wndw_sz_list[i],strides_list[i],
                                 model,scaler)
-        windows = list(windows)
-        
-        detections.extend(windows)
-        
-    return detections
+        for window in windows:
+            yield window
+
+
+def frame_search(img,model,scaler):
+    img_roi = img[img.shape[0]//2:,:,:]
+    
+    wndw_sz_list = [(64,64),(96,72),(128,128),(256,172)]
+    strides_list = [(16,16),(32,32),(64,64),(64,32)]
+    
+    detections = multiscale_window_search(img_roi,
+                                          wndw_sz_list,
+                                          strides_list,
+                                          model,
+                                          scaler)
+    return list(detections)
             
 
 if __name__ == '__main__':
