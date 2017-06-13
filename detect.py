@@ -283,7 +283,8 @@ def multiscale_window_search(img,wndw_sz_list,strides_list,model,scaler):
 
 
 def frame_search(img,model,scaler):
-    img_roi = img[img.shape[0]//2:,:,:]
+    y_start = img.shape[0]//2
+    img_roi = img[y_start:,:,:]
     
     wndw_sz_list = [(64,64),(96,72),(128,128),(256,172)]
     strides_list = [(16,16),(32,32),(64,64),(64,32)]
@@ -293,7 +294,11 @@ def frame_search(img,model,scaler):
                                           strides_list,
                                           model,
                                           scaler)
-    return list(detections)
+    
+    
+    for wndw in detections:
+        yield[(wndw[0][0],wndw[0][1]+y_start),
+              (wndw[1][0],wndw[1][1]+y_start)]
             
 
 if __name__ == '__main__':
