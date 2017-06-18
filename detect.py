@@ -21,7 +21,8 @@ GLOBAL_CONFIG = {'SAMPLE_SZ':(64,64) ,
           'HOG_CHANNEL':'ALL',
           'HOG_ORIENTS':9,
           'HOG_PIX_PER_CELL':8,
-          'HOG_CELLS_PER_BLOCK':2
+          'HOG_CELLS_PER_BLOCK':2,
+          'CELLS_PER_STEP':2
         }
 
 
@@ -76,27 +77,34 @@ def extract_hog_features(img_channel,nb_orient,
                                   feature_vector=ret_vector)
         return features
     
+    
+def cvtColor(img,colorspace:str):
+    if colorspace == 'HSV':
+        img = cv2.cvtColor(img,cv2.COLOR_RGB2HSV)
+        
+    elif colorspace == 'HLS':
+        img = cv2.cvtColor(img,cv2.COLOR_RGB2HLS)
+            
+    elif colorspace == 'LUV':
+        img = cv2.cvtColor(img, cv2.COLOR_RGB2LUV)
+        
+    elif colorspace == 'YUV':
+        img = cv2.cvtColor(img, cv2.COLOR_RGB2YUV)
+    
+    elif colorspace == 'YCrCb':
+        img = cv2.cvtColor(img, cv2.COLOR_RGB2YCrCb)
+            
+    else:
+        raise Exception("% colorspace is not a valid colorspace"%(colorspace))
+
+    return img
+    
 
 def get_features(img,hog_channel,colorspace):
     
     if colorspace != 'RGB':
-        if colorspace == 'HSV':
-            img = cv2.cvtColor(img,cv2.COLOR_RGB2HSV)
+        img = cvtColor(img,colorspace)
         
-        elif colorspace == 'HLS':
-            img = cv2.cvtColor(img,cv2.COLOR_RGB2HLS)
-            
-        elif colorspace == 'LUV':
-            img = cv2.cvtColor(img, cv2.COLOR_RGB2LUV)
-            
-        elif colorspace == 'YUV':
-            img = cv2.cvtColor(img, cv2.COLOR_RGB2YUV)
-        
-        elif colorspace == 'YCrCb':
-            img = cv2.cvtColor(img, cv2.COLOR_RGB2YCrCb)
-            
-        else:
-            raise Exception("% colorspace is not a valid colorspace"%(colorspace))
             
     spatial_bin_features = \
     extract_spatial_bin_features(img,size =  GLOBAL_CONFIG['SPATIAL_BIN_SZ'])
@@ -307,10 +315,58 @@ def multiscale_window_search(img,wndw_sz_list,strides_list,model,scaler):
 
 
 def fast_frame_search(img,y_top,y_bot,scale,model,scaler):
+    ''' 
+    Perfrom fast search for vehicles across a single video
+    frame.
+    '''
+      
+    # Convert colorspace if needed.
+    if GLOBAL_CONFIG['COLORSPACE'] != 'RGB':
+        img = cv2.cvtColor(img,GLOBAL_CONFIG['COLORSPACE'])
+    
+    # Extract region-of-interest(ROI).    
     img_roi = img[y_top:y_bot,:,:]
     
-    wndw_sz_list = [(64,64),(96,72),(128,128),(256,172)]
-    strides_list = [(16,16),(32,32),(64,64),(64,32)]
+    # Scale image if needed.
+    if scale != 1:
+        img_roi = cv2.resize(img_roi,fx=scale,fy=scale)
+        
+    # Find HOG feature(s) for the entire ROI.
+    hog_roi = []
+    
+    channel_ids = [1,2,3] if GLOBAL_CONFIG['HOG_CHANNEL'] == 'ALL' \
+    else [GLOBAL_CONFIG['HOG_CHANNEL']]
+    
+    for channel_id in channel_ids:
+        hog_chann = extract_hog_features(img_roi[:,:,channel_id],
+                     nb_orient=GLOBAL_CONFIG['HOG_ORIENTS'],
+                     nb_pix_per_cell=GLOBAL_CONFIG['HOG_PIX_PER_CELL'],
+                     nb_cell_per_block = GLOBAL_CONFIG['HOG_CELLS_PER_BLOCK'],
+                     ret_vector=False)
+        hog_roi.append(hog_chann)
+
+    
+    # Calculate sliding window parameters.
+    pix_per_cell = GLOBAL_CONFIG['HOG_PIX_PER_CELL']
+    cells_per_block = GLOBAL_CONFIG['HOG_CELLS_PER_BLOCK']
+    
+    nb_cells_x = (img_roi.shape[1] // pix_per_cell)
+    nb_blocks_x = nb_cells_x - (cells_per_block-1)
+    
+    nb_cells_y = (img_roi.shape[0] // pix_per_cell)
+    nb_blocks_y = nb_cells_y - (cells_per_block-1)
+    
+    wndw_sz = GLOBAL_CONFIG['SAMPLE_SZ'][0]
+    blocks_per_window = (wndw_sz // pix_per_cell) - (cells_per_block-1)
+    
+    cells_per_step = GLOBAL_CONFIG['CELLS_PER_STEP']
+    
+    nb_steps_x = (nb_blocks_x - blocks_per_window) // cell
+    
+    
+    
+        
+    
     
     detections = multiscale_window_search(img_roi,
                                           wndw_sz_list,
