@@ -13,6 +13,19 @@ import numpy as np
 import os
 import pickle 
 
+GLOBAL_CONFIG = {'SAMPLE_SZ':(64,64) ,
+          'COLORSPACE':'HLS',
+          'SPATIAL_BIN_SZ':(16,16),
+          'COLOR_BINS':32,
+          'COLOR_VAL_RANGE':(0,256),
+          'HOG_CHANNEL':'ALL',
+          'HOG_ORIENTS':9,
+          'HOG_PIX_PER_CELL':8,
+          'HOG_CELLS_PER_BLOCK':2
+        }
+
+
+
 
 def imgread(path):
     return cv2.cvtColor(cv2.imread(path),cv2.COLOR_BGR2RGB)
@@ -25,12 +38,12 @@ def load_image_data(paths):
     return np.array(data,dtype=np.uint8)
 
 
-def extract_spatial_bin_features(img,size=(32,32)):
+def extract_spatial_bin_features(img,size):
           
     return cv2.resize(img,size).flatten()
 
 
-def extract_color_hist_features(img,nbins=32,range_vals=(0,256)):
+def extract_color_hist_features(img,nbins,range_vals):
     chan0_hist = np.histogram(img[:,:,0],bins=nbins,range=range_vals)
     chan1_hist = np.histogram(img[:,:,1],bins=nbins,range=range_vals)
     chan2_hist = np.histogram(img[:,:,2],bins=nbins,range=range_vals)
@@ -41,9 +54,9 @@ def extract_color_hist_features(img,nbins=32,range_vals=(0,256)):
     return color_hist_features
 
 
-def extract_hog_features(img_channel, channels=0,nb_orient=9, 
-                         nb_pix_per_cell=8,
-                         nb_cell_per_block=2, 
+def extract_hog_features(img_channel,nb_orient, 
+                         nb_pix_per_cell,
+                         nb_cell_per_block, 
                          visualize= False, 
                          ret_vector=True):
     
@@ -64,7 +77,7 @@ def extract_hog_features(img_channel, channels=0,nb_orient=9,
         return features
     
 
-def get_features(img,hog_channel='ALL',colorspace='RGB'):
+def get_features(img,hog_channel,colorspace):
     
     if colorspace != 'RGB':
         if colorspace == 'HSV':
@@ -85,21 +98,29 @@ def get_features(img,hog_channel='ALL',colorspace='RGB'):
         else:
             raise Exception("% colorspace is not a valid colorspace"%(colorspace))
             
-    spatial_bin_features = extract_spatial_bin_features(img,
-                                                        size=(16,16))
+    spatial_bin_features = \
+    extract_spatial_bin_features(img,size =  GLOBAL_CONFIG['SPATIAL_BIN_SZ'])
     
-    color_hist_features  = extract_color_hist_features(img)
+    color_hist_features  = \
+    extract_color_hist_features(img,
+                                nbins=GLOBAL_CONFIG['COLOR_BINS'],
+                                range_vals=GLOBAL_CONFIG['COLOR_VAL_RANGE'])
     
     if hog_channel == 'ALL':
         hog_features = [ ]
         
         for channel in range(3):
-            hog_features.append(extract_hog_features(img[:,:,channel]))
+            hog_features.append(
+                    extract_hog_features(
+                            img[:,:,channel],
+                            nb_orient=GLOBAL_CONFIG['HOG_ORIENTS'],
+                            nb_pix_per_cell=GLOBAL_CONFIG['HOG_PIX_PER_CELL'],
+                            nb_cell_per_block = GLOBAL_CONFIG['HOG_CELLS_PER_BLOCK']))
             
         hog_features = np.ravel(hog_features)
     
     else:
-        hog_features = extract_hog_features(img)
+        hog_features = extract_hog_features(img[:,:,hog_channel])
     
     return np.concatenate((spatial_bin_features,
                           color_hist_features,
@@ -112,7 +133,9 @@ def build_datasets(car_paths,notcar_paths):
     X = []
     for path in tqdm(paths):
         img = imgread(path)
-        X.append(get_features(img,colorspace='HSV'))
+        X.append(get_features(img,
+                              hog_channel= GLOBAL_CONFIG['HOG_CHANNEL'],
+                              colorspace=GLOBAL_CONFIG['COLORSPACE']))
         
     X = np.reshape(X,[len(paths),-1])
     
@@ -244,7 +267,7 @@ def draw_bbox(img,bboxes,color=[0,0,255],thick=5):
     return imgcpy
 
 
-def get_sub_images(img,wndw_sz:tuple,stride:tuple,resize=(64,64)):
+def get_sub_images(img,wndw_sz:tuple,stride:tuple,resize=None):
     x_range = (0,img.shape[1]-1)
     y_range = (0,img.shape[0]-1)
     
@@ -254,7 +277,8 @@ def get_sub_images(img,wndw_sz:tuple,stride:tuple,resize=(64,64)):
         xl,xr = wndw[0][0], wndw[1][0] + 1
         yl,yr = wndw[0][1], wndw[1][1] + 1
         
-        sub_image = cv2.resize(img[yl:yr, xl:xr],resize)
+        if resize != None:
+            sub_image = cv2.resize(img[yl:yr, xl:xr],resize)
         
         yield (sub_image,wndw)
         
@@ -282,9 +306,8 @@ def multiscale_window_search(img,wndw_sz_list,strides_list,model,scaler):
             yield window
 
 
-def frame_search(img,model,scaler):
-    y_start = img.shape[0]//2
-    img_roi = img[y_start:,:,:]
+def fast_frame_search(img,y_top,y_bot,scale,model,scaler):
+    img_roi = img[y_top:y_bot,:,:]
     
     wndw_sz_list = [(64,64),(96,72),(128,128),(256,172)]
     strides_list = [(16,16),(32,32),(64,64),(64,32)]
@@ -297,8 +320,8 @@ def frame_search(img,model,scaler):
     
     
     for wndw in detections:
-        yield[(wndw[0][0],wndw[0][1]+y_start),
-              (wndw[1][0],wndw[1][1]+y_start)]
+        yield[(wndw[0][0],wndw[0][1]+y_top),
+              (wndw[1][0],wndw[1][1]+y_bot)]
             
 
 if __name__ == '__main__':
