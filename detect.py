@@ -319,6 +319,7 @@ def fast_frame_search(img,y_top,y_bot,scale,model,scaler):
     Perfrom fast search for vehicles across a single video
     frame.
     '''
+    draw_img = np.copy(img)
       
     # Convert colorspace if needed.
     if GLOBAL_CONFIG['COLORSPACE'] != 'RGB':
@@ -344,6 +345,7 @@ def fast_frame_search(img,y_top,y_bot,scale,model,scaler):
                      nb_cell_per_block = GLOBAL_CONFIG['HOG_CELLS_PER_BLOCK'],
                      ret_vector=False)
         hog_roi.append(hog_chann)
+        
 
     
     # Calculate sliding window parameters.
@@ -361,23 +363,53 @@ def fast_frame_search(img,y_top,y_bot,scale,model,scaler):
     
     cells_per_step = GLOBAL_CONFIG['CELLS_PER_STEP']
     
-    nb_steps_x = (nb_blocks_x - blocks_per_window) // cell
+    nb_steps_x = (nb_blocks_x - blocks_per_window) // cells_per_step
+    nb_steps_y = (nb_blocks_y - blocks_per_window) // cells_per_step
     
-    
-    
-        
-    
-    
-    detections = multiscale_window_search(img_roi,
-                                          wndw_sz_list,
-                                          strides_list,
-                                          model,
-                                          scaler)
-    
-    
-    for wndw in detections:
-        yield[(wndw[0][0],wndw[0][1]+y_top),
-              (wndw[1][0],wndw[1][1]+y_bot)]
+    for step_y in range(nb_steps_y):
+        for step_x in range(nb_steps_x):
+            
+            cell_x = step_x * cells_per_step
+            cell_y = step_y * cells_per_step
+            
+            hog_features = np.empty([0])
+            
+            for channel_id in channel_ids:
+                hog_chann = hog_roi[channel_id]
+                hog_vector = hog_chann[cell_x:cell_x+blocks_per_window, cell_y:cell_y+blocks_per_window].flatten()
+                hog_features = np.hstack(hog_features,hog_vector)
+                
+            xleft_px = cell_x * pix_per_cell
+            ytop_px  = cell_y * pix_per_cell
+            
+            # Extract sub image
+            sub_img = img_roi[ytop_px:ytop_px+wndw_sz, xleft_px:xleft_px+wndw_sz]
+            
+            spatial_features = extract_spatial_bin_features(sub_img,GLOBAL_CONFIG['SPATIAL_BIN_SZ'])
+            hist_features    = extract_color_hist_features(sub_img,
+                                                           GLOBAL_CONFIG['COLOR_BINS'],
+                                                           GLOBAL_CONFIG['COLOR_VAL_RANGE'])
+            
+            feature_vector = np.hstack(spatial_features,hist_features,hog_features)
+            
+            scaled_features = scaler.transform(feature_vector)
+            
+            prediction = model.predict(scaled_features)
+            
+            if prediction == 1:
+                
+                bbox_x_left = np.int(xleft_px*scale)
+                bbox_y_top  = np.int(ytop_px*scale)
+                
+                bbox_sz = wndw_sz*scale
+                
+                cv2.rectangle(draw_img,
+                              (bbox_x_left, bbox_y_top+y_top),
+                              (bbox_x_left+bbox_sz, bbox_y_top+y_top+bbox_sz),
+                              (0,0,255),
+                              5)
+                
+    return draw_img
             
 
 if __name__ == '__main__':
