@@ -330,7 +330,9 @@ def fast_frame_search(img,y_top,y_bot,scale,model,scaler):
     
     # Scale image if needed.
     if scale != 1:
-        img_roi = cv2.resize(img_roi,fx=scale,fy=scale)
+        target_width = np.int(img_roi.shape[1]/scale)
+        target_height = np.int(img_roi.shape[0]/scale)
+        img_roi = cv2.resize(img_roi,(target_width,target_height))
         
     # Find HOG feature(s) for the entire ROI.
     hog_roi = []
@@ -403,7 +405,7 @@ def fast_frame_search(img,y_top,y_bot,scale,model,scaler):
                 bbox_x_left = np.int(xleft_px*scale)
                 bbox_y_top  = np.int(ytop_px*scale)
                 
-                bbox_sz = wndw_sz*scale
+                bbox_sz = np.int(wndw_sz*scale)
                 
                 cv2.rectangle(draw_img,
                               (bbox_x_left, bbox_y_top+y_top),
