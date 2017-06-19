@@ -323,7 +323,7 @@ def fast_frame_search(img,y_top,y_bot,scale,model,scaler):
       
     # Convert colorspace if needed.
     if GLOBAL_CONFIG['COLORSPACE'] != 'RGB':
-        img = cv2.cvtColor(img,GLOBAL_CONFIG['COLORSPACE'])
+        img = cvtColor(img,GLOBAL_CONFIG['COLORSPACE'])
     
     # Extract region-of-interest(ROI).    
     img_roi = img[y_top:y_bot,:,:]
@@ -335,7 +335,7 @@ def fast_frame_search(img,y_top,y_bot,scale,model,scaler):
     # Find HOG feature(s) for the entire ROI.
     hog_roi = []
     
-    channel_ids = [1,2,3] if GLOBAL_CONFIG['HOG_CHANNEL'] == 'ALL' \
+    channel_ids = [0,1,2] if GLOBAL_CONFIG['HOG_CHANNEL'] == 'ALL' \
     else [GLOBAL_CONFIG['HOG_CHANNEL']]
     
     for channel_id in channel_ids:
@@ -376,11 +376,13 @@ def fast_frame_search(img,y_top,y_bot,scale,model,scaler):
             
             for channel_id in channel_ids:
                 hog_chann = hog_roi[channel_id]
-                hog_vector = hog_chann[cell_x:cell_x+blocks_per_window, cell_y:cell_y+blocks_per_window].flatten()
-                hog_features = np.hstack(hog_features,hog_vector)
+                hog_vector = hog_chann[ cell_y:cell_y+blocks_per_window,cell_x:cell_x+blocks_per_window].flatten()
+                hog_features = np.hstack((hog_features,hog_vector))
+                
                 
             xleft_px = cell_x * pix_per_cell
             ytop_px  = cell_y * pix_per_cell
+
             
             # Extract sub image
             sub_img = img_roi[ytop_px:ytop_px+wndw_sz, xleft_px:xleft_px+wndw_sz]
@@ -390,9 +392,9 @@ def fast_frame_search(img,y_top,y_bot,scale,model,scaler):
                                                            GLOBAL_CONFIG['COLOR_BINS'],
                                                            GLOBAL_CONFIG['COLOR_VAL_RANGE'])
             
-            feature_vector = np.hstack(spatial_features,hist_features,hog_features)
+            feature_vector = np.hstack((spatial_features,hist_features,hog_features))
             
-            scaled_features = scaler.transform(feature_vector)
+            scaled_features = scaler.transform(feature_vector.reshape([1,-1]))
             
             prediction = model.predict(scaled_features)
             
