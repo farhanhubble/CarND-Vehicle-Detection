@@ -407,13 +407,22 @@ def fast_frame_search(img,y_top,y_bot,scale,model,scaler):
                 
                 bbox_sz = np.int(wndw_sz*scale)
                 
-                cv2.rectangle(draw_img,
-                              (bbox_x_left, bbox_y_top+y_top),
-                              (bbox_x_left+bbox_sz, bbox_y_top+y_top+bbox_sz),
-                              (0,0,255),
-                              5)
+                yield [(bbox_x_left, bbox_y_top+y_top),(bbox_x_left+bbox_sz, bbox_y_top+y_top+bbox_sz)]
                 
-    return draw_img
+#==============================================================================
+#                 cv2.rectangle(draw_img,
+#                               (bbox_x_left, bbox_y_top+y_top),
+#                               (bbox_x_left+bbox_sz, bbox_y_top+y_top+bbox_sz),
+#                               (0,0,255),
+#                               5)
+#==============================================================================
+                
+#    return draw_img
+
+
+    
+    
+    
             
 
 if __name__ == '__main__':
@@ -436,4 +445,19 @@ if __name__ == '__main__':
         model = load_model('model.p')
         
     X_scaler = load_scaler('scaler.p')
+    
+   
+    def process_frame(img):
+    
+        bboxes = []
+        
+        rois = [(420,550),(420,600),(420,600),(420,620),(420,650),(420,650)]
+        scales = [1,1.5,2,2.5,3,3.5]
+        
+        for i in range(len(scales)):
+            bboxes.extend(fast_frame_search(img,rois[i][0],rois[i][1],scales[i],model,X_scaler))
+            
+        return bboxes
+    
+    
         
