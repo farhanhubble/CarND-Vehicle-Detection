@@ -441,8 +441,8 @@ def threshold_heat(hmap,thresh):
 def search_vehicles(img,model,scaler):
     bboxes = []
     
-    rois = [(420,550),(420,600),(420,600),(420,620),(420,650),(420,650)]
-    scales = [1,1.5,2,2.5,3,3.5]
+    rois = [(400,550),(400,600),(400,650),(400,650)]
+    scales = [1,2,3,3.5]
     
     for i in range(len(scales)):
         bboxes.extend(fast_frame_search(img,rois[i][0],rois[i][1],scales[i],model,scaler))
@@ -502,15 +502,16 @@ if __name__ == '__main__':
     def process_frame(img):
         bboxes_incoming = search_vehicles(img,model,X_scaler)
         
-        bboxes_outgoing = []
         
         if len(bbox_queue) > GLOBAL_CONFIG['FRAME_HIST_COUNT']:
             bboxes_outgoing = bbox_queue.popleft()
-            
+            remove_heat(heatmap,bboxes_outgoing)
+         
+        bbox_queue.append(bboxes_incoming)
         add_heat(heatmap,bboxes_incoming)
-        remove_heat(heatmap,bboxes_outgoing)
+
         
-        high_heat = threshold_heat(heatmap,4)
+        high_heat = threshold_heat(heatmap,10)
         
         labels = label(high_heat)
         
