@@ -1,5 +1,8 @@
 # -*- coding: utf-8 -*-
+from collections import deque
 from glob import glob
+from moviepy.editor import VideoFileClip
+from scipy.ndimage.measurements import label
 from skimage.feature import hog
 from sklearn.model_selection import train_test_split, GridSearchCV
 from sklearn.preprocessing import StandardScaler
@@ -22,7 +25,8 @@ GLOBAL_CONFIG = {'SAMPLE_SZ':(64,64) ,
           'HOG_ORIENTS':9,
           'HOG_PIX_PER_CELL':8,
           'HOG_CELLS_PER_BLOCK':2,
-          'CELLS_PER_STEP':2
+          'CELLS_PER_STEP':2,
+          'FRAME_HIST_COUNT':6
         }
 
 
@@ -319,7 +323,7 @@ def fast_frame_search(img,y_top,y_bot,scale,model,scaler):
     Perfrom fast search for vehicles across a single video
     frame.
     '''
-    draw_img = np.copy(img)
+#    draw_img = np.copy(img)
       
     # Convert colorspace if needed.
     if GLOBAL_CONFIG['COLORSPACE'] != 'RGB':
@@ -420,9 +424,51 @@ def fast_frame_search(img,y_top,y_bot,scale,model,scaler):
 #    return draw_img
 
 
+def add_heat(hmap,bboxes):
+    for [(xl,yt),(xr,yb)] in bboxes:
+        hmap[yt:yb,xl:xr] += 1
+        
+        
+def remove_heat(hmap,bboxes):
+    for [(xl,yt),(xr,yb)] in bboxes:
+        hmap[yt:yb,xl:xr] -= 1
     
     
+def threshold_heat(hmap,thresh):
+    return (hmap >= thresh).astype(np.uint8)
+
+
+def search_vehicles(img,model,scaler):
+    bboxes = []
     
+    rois = [(420,550),(420,600),(420,600),(420,620),(420,650),(420,650)]
+    scales = [1,1.5,2,2.5,3,3.5]
+    
+    for i in range(len(scales)):
+        bboxes.extend(fast_frame_search(img,rois[i][0],rois[i][1],scales[i],model,scaler))
+        
+    return bboxes
+
+
+def labels_to_bboxes(labels):
+    nb_labels = labels[1]
+    label_map = labels[0]
+    
+    for label_id in range(1,nb_labels+1):
+        nonzero = (label_map == label_id).nonzero()
+        
+        nonzeroy = np.array(nonzero[0])
+        nonzerox = np.array(nonzero[1])
+        
+        xl = np.min(nonzerox)
+        xr = np.max(nonzerox)
+        
+        yt = np.min(nonzeroy)
+        yb = np.max(nonzeroy)
+        
+        yield [(xl,yt),(xr,yb)]
+            
+            
             
 
 if __name__ == '__main__':
@@ -446,18 +492,35 @@ if __name__ == '__main__':
         
     X_scaler = load_scaler('scaler.p')
     
-   
+    
+    img_width = 1280
+    img_height = 720
+    heatmap = np.zeros([img_height,img_width])
+
+    bbox_queue = deque()  
+    
     def process_frame(img):
-    
-        bboxes = []
+        bboxes_incoming = search_vehicles(img,model,X_scaler)
         
-        rois = [(420,550),(420,600),(420,600),(420,620),(420,650),(420,650)]
-        scales = [1,1.5,2,2.5,3,3.5]
+        bboxes_outgoing = []
         
-        for i in range(len(scales)):
-            bboxes.extend(fast_frame_search(img,rois[i][0],rois[i][1],scales[i],model,X_scaler))
+        if len(bbox_queue) > GLOBAL_CONFIG['FRAME_HIST_COUNT']:
+            bboxes_outgoing = bbox_queue.popleft()
             
-        return bboxes
-    
-    
+        add_heat(heatmap,bboxes_incoming)
+        remove_heat(heatmap,bboxes_outgoing)
         
+        high_heat = threshold_heat(heatmap,4)
+        
+        labels = label(high_heat)
+        
+        bboxes_to_draw = labels_to_bboxes(labels)
+        
+        return draw_bbox(img,bboxes_to_draw)
+    
+    # Process video.
+    in_clip = VideoFileClip('test_video.mp4',audio=False)
+    out_filename = 'processed-test_video.mp4'
+    
+    out_clip = in_clip.fl_image(process_frame)
+    out_clip.write_videofile(out_filename,audio=False)
