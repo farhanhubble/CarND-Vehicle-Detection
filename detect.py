@@ -25,8 +25,8 @@ GLOBAL_CONFIG = {'SAMPLE_SZ':(64,64) ,
           'HOG_ORIENTS':9,
           'HOG_PIX_PER_CELL':8,
           'HOG_CELLS_PER_BLOCK':2,
-          'CELLS_PER_STEP':2,
-          'FRAME_HIST_COUNT':6
+          'CELLS_PER_STEP':4,
+          'FRAME_HIST_COUNT':25
         }
 
 
@@ -424,25 +424,12 @@ def fast_frame_search(img,y_top,y_bot,scale,model,scaler):
 #    return draw_img
 
 
-def add_heat(hmap,bboxes):
-    _hmap = np.zeros_like(hmap)
-    for [(xl,yt),(xr,yb)] in bboxes:
-        _hmap[yt:yb,xl:xr] += 1
-     
-    off_indices = np.where(np.logical_and(hmap > 0,_hmap == 0))
-    hmap[off_indices] -= 1
-    hmap += _hmap
-        
+def build_heatmap(hmap,queue):
+    for bboxes in queue:
+        for [(xl,yt),(xr,yb)] in bboxes:
+            hmap[yt:yb,xl:xr] += 1
+    np.clip(hmap,0,255)
     
-        
-        
-def remove_heat(hmap,bboxes):
-    _hmap = np.zeros_like(hmap)
-    for [(xl,yt),(xr,yb)] in bboxes:
-        _hmap[yt:yb,xl:xr] += 1
-    
-    indices = np.where(np.logical_and(hmap >= _hmap, _hmap >0))
-    hmap[indices] -= _hmap[indices]
     
     
 def threshold_heat(hmap,thresh):
@@ -452,8 +439,8 @@ def threshold_heat(hmap,thresh):
 def search_vehicles(img,model,scaler):
     bboxes = []
     
-    rois = [(400,550),(400,600),(400,650)]
-    scales = [1.5,3,3.5]
+    rois = [(400,500),(400,600),(400,650)]
+    scales = [1,1.5,2.5]
     
     for i in range(len(scales)):
         bboxes.extend(fast_frame_search(img,rois[i][0],rois[i][1],scales[i],model,scaler))
@@ -506,7 +493,6 @@ if __name__ == '__main__':
     
     img_width = 1280
     img_height = 720
-    heatmap = np.zeros([img_height,img_width])
 
     bbox_queue = deque()  
     
@@ -515,14 +501,13 @@ if __name__ == '__main__':
         
         
         if len(bbox_queue) > GLOBAL_CONFIG['FRAME_HIST_COUNT']:
-            bboxes_outgoing = bbox_queue.popleft()
-            remove_heat(heatmap,bboxes_outgoing)
+            bbox_queue.popleft()
          
         bbox_queue.append(bboxes_incoming)
-        add_heat(heatmap,bboxes_incoming)
 
-        
-        high_heat = threshold_heat(heatmap,10)
+        heatmap = np.zeros([img_height,img_width])
+        build_heatmap(heatmap,bbox_queue)
+        high_heat = threshold_heat(heatmap,15)
         
         labels = label(high_heat)
         
