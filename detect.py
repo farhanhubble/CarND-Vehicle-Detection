@@ -428,16 +428,21 @@ def add_heat(hmap,bboxes):
     _hmap = np.zeros_like(hmap)
     for [(xl,yt),(xr,yb)] in bboxes:
         _hmap[yt:yb,xl:xr] += 1
-        
-    hmap[_hmap == 0] = 0
+     
+    off_indices = np.where(np.logical_and(hmap > 0,_hmap == 0))
+    hmap[off_indices] -= 1
     hmap += _hmap
         
     
         
         
 def remove_heat(hmap,bboxes):
+    _hmap = np.zeros_like(hmap)
     for [(xl,yt),(xr,yb)] in bboxes:
-        hmap[yt:yb,xl:xr] -= 1
+        _hmap[yt:yb,xl:xr] += 1
+    
+    indices = np.where(np.logical_and(hmap >= _hmap, _hmap >0))
+    hmap[indices] -= _hmap[indices]
     
     
 def threshold_heat(hmap,thresh):
@@ -447,8 +452,8 @@ def threshold_heat(hmap,thresh):
 def search_vehicles(img,model,scaler):
     bboxes = []
     
-    rois = [(400,550),(400,600),(400,650),(400,650)]
-    scales = [1,2,3,3.5]
+    rois = [(400,550),(400,600),(400,650)]
+    scales = [1.5,3,3.5]
     
     for i in range(len(scales)):
         bboxes.extend(fast_frame_search(img,rois[i][0],rois[i][1],scales[i],model,scaler))
