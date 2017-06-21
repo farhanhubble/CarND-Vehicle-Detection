@@ -425,8 +425,14 @@ def fast_frame_search(img,y_top,y_bot,scale,model,scaler):
 
 
 def add_heat(hmap,bboxes):
+    _hmap = np.zeros_like(hmap)
     for [(xl,yt),(xr,yb)] in bboxes:
-        hmap[yt:yb,xl:xr] += 1
+        _hmap[yt:yb,xl:xr] += 1
+        
+    hmap[_hmap == 0] = 0
+    hmap += _hmap
+        
+    
         
         
 def remove_heat(hmap,bboxes):
