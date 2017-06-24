@@ -24,11 +24,11 @@ GLOBAL_CONFIG = {'SAMPLE_SZ':(64,64) ,
           'HOG_CHANNEL':'ALL',
           'HOG_ORIENTS':9,
           'HOG_PIX_PER_CELL':8,
-          'HOG_CELLS_PER_BLOCK':2,
-          'CELLS_PER_STEP':2,
-          'FRAME_HIST_COUNT':12,
+          'HOG_CELLS_PER_BLOCK':1,
+          'CELLS_PER_STEP':4,
+          'FRAME_HIST_COUNT':20,
           'HEAT_THRESH':6,
-          'ROIS':[(400,550),(400,600),(400,650)],
+          'ROIS':[(400,550),(400,650),(400,700)],
           'SCALES': [1.5,2.5,3.5]
         }
 
@@ -221,7 +221,7 @@ def load_scaler(filename):
 def train(X,y):
     hyperparams = {'C':[0.1,1,10],
                    'kernel':['linear']}
-    svc = SVC()
+    svc = SVC(probability=True)
     clf = GridSearchCV(svc,hyperparams,verbose=2)
     clf.fit(X,y)
     return clf
@@ -373,10 +373,13 @@ def fast_frame_search(img,y_top,y_bot,scale,model,scaler):
     wndw_sz = GLOBAL_CONFIG['SAMPLE_SZ'][0]
     blocks_per_window = (wndw_sz // pix_per_cell) - (cells_per_block-1)
     
-    cells_per_step = int(GLOBAL_CONFIG['CELLS_PER_STEP'] * scale)
+    cells_per_step = int(GLOBAL_CONFIG['CELLS_PER_STEP'])
     
-    nb_steps_x = (nb_blocks_x - blocks_per_window) // cells_per_step
-    nb_steps_y = (nb_blocks_y - blocks_per_window) // cells_per_step
+    nb_steps_x = (nb_blocks_x - blocks_per_window ) // cells_per_step + 1
+    nb_steps_y = (nb_blocks_y - blocks_per_window ) // cells_per_step + 1
+    
+    if nb_steps_x <= 0  or nb_steps_y <= 0:
+        print('Warning: Using scale {} will generate no sliding windows'.format(scale))
     
     for step_y in range(nb_steps_y):
         for step_x in range(nb_steps_x):
@@ -408,9 +411,9 @@ def fast_frame_search(img,y_top,y_bot,scale,model,scaler):
             
             scaled_features = scaler.transform(feature_vector.reshape([1,-1]))
             
-            prediction = model.predict(scaled_features)
+            prediction_prob = model.predict_proba(scaled_features)
             
-            if prediction == 1:
+            if prediction_prob > 0.75:
                 
                 bbox_x_left = np.int(xleft_px*scale)
                 bbox_y_top  = np.int(ytop_px*scale)
@@ -527,8 +530,7 @@ def video_pipeline():
     print("Processing video at scales{}".format(GLOBAL_CONFIG['SCALES']))
     # Process video.
     in_clip = VideoFileClip('project_video.mp4',audio=False)
-    in_clip = in_clip.set_end(11)
-    in_clip = in_clip.set_start(6)
+
     out_filename = 'processed-poject_video.mp4'
     
     out_clip = in_clip.fl_image(process_frame)
