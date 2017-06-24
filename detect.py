@@ -25,8 +25,11 @@ GLOBAL_CONFIG = {'SAMPLE_SZ':(64,64) ,
           'HOG_ORIENTS':9,
           'HOG_PIX_PER_CELL':8,
           'HOG_CELLS_PER_BLOCK':2,
-          'CELLS_PER_STEP':4,
-          'FRAME_HIST_COUNT':25
+          'CELLS_PER_STEP':2,
+          'FRAME_HIST_COUNT':12,
+          'HEAT_THRESH':6,
+          'ROIS':[(400,550),(400,600),(400,650)],
+          'SCALES': [1.5,2.5,3.5]
         }
 
 
@@ -225,7 +228,7 @@ def train(X,y):
 
 
 def test(model,X,y):
-    return round(model.score(X_test,y_test), 4)
+    return round(model.score(X,y), 4)
 
 
 def save_model(model,filename):
@@ -291,16 +294,19 @@ def get_sub_images(img,wndw_sz:tuple,stride:tuple,resize=None):
         
         if resize != None:
             sub_image = cv2.resize(img[yl:yr, xl:xr],resize)
+        else:
+            sub_image = img[yl:yr, xl:xr]
         
         yield (sub_image,wndw)
         
         
 def window_search(img,wndw_sz:tuple,stride:tuple,model,scaler):
-    
-    sub_images = get_sub_images(img,wndw_sz,stride)
+
+    sub_images = get_sub_images(img,wndw_sz,stride,resize=GLOBAL_CONFIG['SAMPLE_SZ'])
     
     for sub_image,wndw in sub_images:
-        features = get_features(sub_image,colorspace='HSV')
+        features = get_features(sub_image,hog_channel= GLOBAL_CONFIG['HOG_CHANNEL'],
+                              colorspace=GLOBAL_CONFIG['COLORSPACE'])
         scaled_features = scaler.transform(features.reshape(1,-1))
         
         is_car = model.predict(scaled_features)
@@ -367,7 +373,7 @@ def fast_frame_search(img,y_top,y_bot,scale,model,scaler):
     wndw_sz = GLOBAL_CONFIG['SAMPLE_SZ'][0]
     blocks_per_window = (wndw_sz // pix_per_cell) - (cells_per_block-1)
     
-    cells_per_step = GLOBAL_CONFIG['CELLS_PER_STEP']
+    cells_per_step = int(GLOBAL_CONFIG['CELLS_PER_STEP'] * scale)
     
     nb_steps_x = (nb_blocks_x - blocks_per_window) // cells_per_step
     nb_steps_y = (nb_blocks_y - blocks_per_window) // cells_per_step
@@ -439,11 +445,12 @@ def threshold_heat(hmap,thresh):
 def search_vehicles(img,model,scaler):
     bboxes = []
     
-    rois = [(400,500),(400,600),(400,650)]
-    scales = [1,1.5,2.5]
-    
+    rois = GLOBAL_CONFIG['ROIS']
+    scales = GLOBAL_CONFIG['SCALES']
+#    print("Trying search at scale {}".format(scales))
     for i in range(len(scales)):
-        bboxes.extend(fast_frame_search(img,rois[i][0],rois[i][1],scales[i],model,scaler))
+        bbox_list = list(fast_frame_search(img,rois[i][0],rois[i][1],scales[i],model,scaler))
+        bboxes.extend(bbox_list)
         
     return bboxes
 
@@ -466,11 +473,9 @@ def labels_to_bboxes(labels):
         
         yield [(xl,yt),(xr,yb)]
             
-            
-            
 
-if __name__ == '__main__':
 
+def video_pipeline():
     if not os.path.isfile('model.p'):
         train_data,test_data = get_datasets()
         
@@ -496,7 +501,9 @@ if __name__ == '__main__':
 
     bbox_queue = deque()  
     
+    
     def process_frame(img):
+        
         bboxes_incoming = search_vehicles(img,model,X_scaler)
         
         
@@ -507,17 +514,28 @@ if __name__ == '__main__':
 
         heatmap = np.zeros([img_height,img_width])
         build_heatmap(heatmap,bbox_queue)
-        high_heat = threshold_heat(heatmap,15)
+        high_heat = threshold_heat(heatmap,GLOBAL_CONFIG['HEAT_THRESH'])
         
         labels = label(high_heat)
         
         bboxes_to_draw = labels_to_bboxes(labels)
         
         return draw_bbox(img,bboxes_to_draw)
+        #return np.dstack((heatmap*50,np.zeros_like(heatmap),np.zeros_like(heatmap)))
     
+    
+    print("Processing video at scales{}".format(GLOBAL_CONFIG['SCALES']))
     # Process video.
-    in_clip = VideoFileClip('test_video.mp4',audio=False)
-    out_filename = 'processed-test_video.mp4'
+    in_clip = VideoFileClip('project_video.mp4',audio=False)
+    in_clip = in_clip.set_end(11)
+    in_clip = in_clip.set_start(6)
+    out_filename = 'processed-poject_video.mp4'
     
     out_clip = in_clip.fl_image(process_frame)
     out_clip.write_videofile(out_filename,audio=False)
+         
+            
+
+if __name__ == '__main__':
+    video_pipeline()
+
