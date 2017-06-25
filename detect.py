@@ -17,19 +17,20 @@ import os
 import pickle 
 
 GLOBAL_CONFIG = {'SAMPLE_SZ':(64,64) ,
-          'COLORSPACE':'HLS',
+          'COLORSPACE':'YCrCb',
           'SPATIAL_BIN_SZ':(16,16),
           'COLOR_BINS':32,
           'COLOR_VAL_RANGE':(0,256),
           'HOG_CHANNEL':'ALL',
           'HOG_ORIENTS':9,
-          'HOG_PIX_PER_CELL':8,
+          'HOG_PIX_PER_CELL':16,
           'HOG_CELLS_PER_BLOCK':1,
-          'CELLS_PER_STEP':4,
-          'FRAME_HIST_COUNT':20,
-          'HEAT_THRESH':6,
-          'ROIS':[(400,550),(400,650),(400,700)],
-          'SCALES': [1.5,2.5,3.5]
+          'CELLS_PER_STEP':2,
+          'FRAME_HIST_COUNT':15,
+          'HEAT_THRESH':8,
+          'ROIS':[[(0,1280),(400,550)],[(640,1280),(400,650)],[(640,1280),(400,700)]],
+          'SCALES': [1.5,2.5,3.5],
+          'PREDICTION_THRESH':0.5
         }
 
 
@@ -135,7 +136,10 @@ def get_features(img,hog_channel,colorspace):
         hog_features = np.ravel(hog_features)
     
     else:
-        hog_features = extract_hog_features(img[:,:,hog_channel])
+        hog_features = extract_hog_features(img[:,:,hog_channel],
+                            nb_orient=GLOBAL_CONFIG['HOG_ORIENTS'],
+                            nb_pix_per_cell=GLOBAL_CONFIG['HOG_PIX_PER_CELL'],
+                            nb_cell_per_block = GLOBAL_CONFIG['HOG_CELLS_PER_BLOCK'])
     
     return np.concatenate((spatial_bin_features,
                           color_hist_features,
@@ -300,6 +304,11 @@ def get_sub_images(img,wndw_sz:tuple,stride:tuple,resize=None):
         yield (sub_image,wndw)
         
         
+def is_car(model,features):
+     prediction_probs = model.predict_proba(features).flatten()
+     return prediction_probs[1] > GLOBAL_CONFIG['PREDICTION_THRESH']
+        
+        
 def window_search(img,wndw_sz:tuple,stride:tuple,model,scaler):
 
     sub_images = get_sub_images(img,wndw_sz,stride,resize=GLOBAL_CONFIG['SAMPLE_SZ'])
@@ -309,9 +318,9 @@ def window_search(img,wndw_sz:tuple,stride:tuple,model,scaler):
                               colorspace=GLOBAL_CONFIG['COLORSPACE'])
         scaled_features = scaler.transform(features.reshape(1,-1))
         
-        is_car = model.predict(scaled_features)
+        car = is_car(model,scaled_features)
         
-        if is_car == 1:
+        if car == 1:
             yield wndw
             
             
@@ -324,7 +333,7 @@ def multiscale_window_search(img,wndw_sz_list,strides_list,model,scaler):
             yield window
 
 
-def fast_frame_search(img,y_top,y_bot,scale,model,scaler):
+def fast_frame_search(img,x_left,x_rght,y_top,y_bot,scale,model,scaler):
     ''' 
     Perfrom fast search for vehicles across a single video
     frame.
@@ -336,7 +345,7 @@ def fast_frame_search(img,y_top,y_bot,scale,model,scaler):
         img = cvtColor(img,GLOBAL_CONFIG['COLORSPACE'])
     
     # Extract region-of-interest(ROI).    
-    img_roi = img[y_top:y_bot,:,:]
+    img_roi = img[y_top:y_bot,x_left:x_rght,:]
     
     # Scale image if needed.
     if scale != 1:
@@ -411,16 +420,14 @@ def fast_frame_search(img,y_top,y_bot,scale,model,scaler):
             
             scaled_features = scaler.transform(feature_vector.reshape([1,-1]))
             
-            prediction_prob = model.predict_proba(scaled_features)
-            
-            if prediction_prob > 0.75:
+            if is_car(model,scaled_features):
                 
                 bbox_x_left = np.int(xleft_px*scale)
                 bbox_y_top  = np.int(ytop_px*scale)
                 
                 bbox_sz = np.int(wndw_sz*scale)
                 
-                yield [(bbox_x_left, bbox_y_top+y_top),(bbox_x_left+bbox_sz, bbox_y_top+y_top+bbox_sz)]
+                yield [(bbox_x_left+x_left, bbox_y_top+y_top),(bbox_x_left+x_left+bbox_sz, bbox_y_top+y_top+bbox_sz)]
                 
 #==============================================================================
 #                 cv2.rectangle(draw_img,
@@ -452,7 +459,9 @@ def search_vehicles(img,model,scaler):
     scales = GLOBAL_CONFIG['SCALES']
 #    print("Trying search at scale {}".format(scales))
     for i in range(len(scales)):
-        bbox_list = list(fast_frame_search(img,rois[i][0],rois[i][1],scales[i],model,scaler))
+        roi_x = rois[i][0]
+        roi_y = rois[i][1]
+        bbox_list = list(fast_frame_search(img,roi_x[0],roi_x[1],roi_y[0],roi_y[1],scales[i],model,scaler))
         bboxes.extend(bbox_list)
         
     return bboxes
@@ -504,7 +513,6 @@ def video_pipeline():
 
     bbox_queue = deque()  
     
-    
     def process_frame(img):
         
         bboxes_incoming = search_vehicles(img,model,X_scaler)
@@ -521,11 +529,15 @@ def video_pipeline():
         
         labels = label(high_heat)
         
-        bboxes_to_draw = labels_to_bboxes(labels)
+        bboxes_to_draw = list(labels_to_bboxes(labels))
+        if len(bboxes_to_draw) == 0:
+            return draw_bbox(img,process_frame.bboxes_prev,color=[255,255,0])
+        else:
+            process_frame.bboxes_prev = [bbox for bbox in bboxes_to_draw ]
         
         return draw_bbox(img,bboxes_to_draw)
         #return np.dstack((heatmap*50,np.zeros_like(heatmap),np.zeros_like(heatmap)))
-    
+    process_frame.bboxes_prev = []
     
     print("Processing video at scales{}".format(GLOBAL_CONFIG['SCALES']))
     # Process video.
