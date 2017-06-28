@@ -48,9 +48,9 @@ Video was processed at 25fps and each frame  passed through the multiscale windo
 ## Todos
 1. **Speed:** The current pipeline runs at just 3 fps. To make it realtime an improvement of >8x is needed. The code has to be profiled and optimized. Alternate frames can be entirely skipped or search can be narrowed down on most frames using prior knowledge from previous frames.
 
-2. ** False Negatives: ** From time to time, a vehicle already being tracked, fails to be detected. As of now the bounding boxes change color to Red to signal this but their position and size doesn't change. By keeping track of the change in position and size of individual boxes, vehices can be tracked more accurately when detection fais momentarily.
-
-3. ** Accurate Bouding Boxes:** The HOG based technique currenty used has its limitations. Bounding boxes are often much larger or smaller than the vehicle and the position of the boxes changes abruptly from frame to frame. Deep neural networks can be used to detect cars accuratey at multiple scales. The prediction can then be run on a GPU. Worth consdering are the [YOLO](https://arxiv.org/abs/1506.02640) detector as well as a semantic segmentation based approch, e.g. the one described [here](http://iv2016.berkeleyvision.org/papers/romera.pdf)
+2. **False Negatives:** From time to time, a vehicle already being tracked, fails to be detected. As of now the bounding boxes change color to Red to signal this but their position and size doesn't change. By keeping track of the change in position and size of individual boxes, vehices can be tracked more accurately when detection fais momentarily.
+ 
+3. **Accurate Bouding Boxes:**  The HOG based technique currenty used has its limitations. Bounding boxes are often much larger or smaller than the vehicle and the position of the boxes changes abruptly from frame to frame. Deep neural networks can be used to detect cars accuratey at multiple scales. The prediction can then be run on a GPU. Worth consdering are the [YOLO](https://arxiv.org/abs/1506.02640) detector as well as a semantic segmentation based approch, e.g. the one described [here](http://iv2016.berkeleyvision.org/papers/romera.pdf)
 
 
 
