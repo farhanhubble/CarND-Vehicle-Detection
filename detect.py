@@ -27,10 +27,10 @@ GLOBAL_CONFIG = {'SAMPLE_SZ':(64,64) ,
           'HOG_CELLS_PER_BLOCK':1,
           'CELLS_PER_STEP':2,
           'FRAME_HIST_COUNT':15,
-          'HEAT_THRESH':8,
-          'ROIS':[[(0,1280),(400,550)],[(640,1280),(400,650)],[(640,1280),(400,700)]],
-          'SCALES': [1.5,2.5,3.5],
-          'PREDICTION_THRESH':0.5
+          'HEAT_THRESH':6,
+          'ROIS':[[(0,1280),(400,700)],[(640,1280),(400,650)],[(900,1280),(400,650)]],
+          'SCALES': [1.5,2,2.5],
+          'PREDICTION_THRESH':0.7
         }
 
 
@@ -338,7 +338,6 @@ def fast_frame_search(img,x_left,x_rght,y_top,y_bot,scale,model,scaler):
     Perfrom fast search for vehicles across a single video
     frame.
     '''
-#    draw_img = np.copy(img)
       
     # Convert colorspace if needed.
     if GLOBAL_CONFIG['COLORSPACE'] != 'RGB':
@@ -429,15 +428,6 @@ def fast_frame_search(img,x_left,x_rght,y_top,y_bot,scale,model,scaler):
                 
                 yield [(bbox_x_left+x_left, bbox_y_top+y_top),(bbox_x_left+x_left+bbox_sz, bbox_y_top+y_top+bbox_sz)]
                 
-#==============================================================================
-#                 cv2.rectangle(draw_img,
-#                               (bbox_x_left, bbox_y_top+y_top),
-#                               (bbox_x_left+bbox_sz, bbox_y_top+y_top+bbox_sz),
-#                               (0,0,255),
-#                               5)
-#==============================================================================
-                
-#    return draw_img
 
 
 def build_heatmap(hmap,queue):
@@ -457,7 +447,6 @@ def search_vehicles(img,model,scaler):
     
     rois = GLOBAL_CONFIG['ROIS']
     scales = GLOBAL_CONFIG['SCALES']
-#    print("Trying search at scale {}".format(scales))
     for i in range(len(scales)):
         roi_x = rois[i][0]
         roi_y = rois[i][1]
@@ -531,20 +520,21 @@ def video_pipeline():
         
         bboxes_to_draw = list(labels_to_bboxes(labels))
         if len(bboxes_to_draw) == 0:
-            return draw_bbox(img,process_frame.bboxes_prev,color=[255,255,0])
+            return draw_bbox(img,process_frame.bboxes_prev,color=[255,0,0])
         else:
             process_frame.bboxes_prev = [bbox for bbox in bboxes_to_draw ]
         
         return draw_bbox(img,bboxes_to_draw)
-        #return np.dstack((heatmap*50,np.zeros_like(heatmap),np.zeros_like(heatmap)))
+    
     process_frame.bboxes_prev = []
     
-    print("Processing video at scales{}".format(GLOBAL_CONFIG['SCALES']))
+    
     # Process video.
     in_clip = VideoFileClip('project_video.mp4',audio=False)
 
     out_filename = 'processed-poject_video.mp4'
     
+    print("Searching vehicles at scales {}:".format(GLOBAL_CONFIG['SCALES']))
     out_clip = in_clip.fl_image(process_frame)
     out_clip.write_videofile(out_filename,audio=False)
          
